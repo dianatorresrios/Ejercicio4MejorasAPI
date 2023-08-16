@@ -1,0 +1,43 @@
+// controllers/ticketController
+const knex = require('../db/connection');
+
+async function calculateTotals(ticketId) {
+  const ticket = await knex('tickets').where({ id: ticketId }).first();
+  const items = await knex('items').where({ ticket_id: ticketId });
+
+  let subtotal = 0;
+  items.forEach(item => {
+    subtotal += item.price * item.quantity;
+  });
+
+  const iva = subtotal * 0.19; // Supongamos que el IVA es el 19% del subtotal
+  const total = subtotal + iva;
+
+  return { subtotal, iva, total };
+}
+
+async function updateTicketTotalsAndStock(ticketId) {
+  const totals = await calculateTotals(ticketId);
+  
+  await knex('tickets').where({ id: ticketId }).update({
+    subtotal: totals.subtotal,
+    iva: totals.iva,
+    total: totals.total
+  });
+
+  const items = await knex('items').where({ ticket_id: ticketId });
+
+  for (const item of items) {
+    const availableStock = await knex('items').select('stock').where({ id: item.id }).first();
+    if (availableStock.stock >= item.quantity) {
+      await knex('items').where({ id: item.id }).decrement('stock', item.quantity);
+    } else {
+      
+    }
+  }
+}
+
+module.exports = {
+  calculateTotals,
+  updateTicketTotalsAndStock
+};
